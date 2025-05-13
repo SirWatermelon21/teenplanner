@@ -1,0 +1,27 @@
+someone suggest an event into the timeline
+
+can be viewed from any desktop
+make a mobile ui later 
+notifications of each event
+AI agent built in to inform a person seeking to add an event (food, water, travel, etc. based on current location in real-time)
+
+"hey i think we all need to eat, find us some place good"
+
+preferences prelaoded into the trip to find/scrape for optimal suggestions for everybody
+
+- people must vote to be able to confirm the event (confirmed events look different from suggested events at different times) 
+
+- draggable timeline to seee different events
+
+- AI builds the context parameter, full details of every activity. 
+
+For example:
+
+6am breakfast 
+-> walk to train station - transportation 
+-> visit broadway(event)
+
+
+raw skeleton - a interactable, bubbly, and satisfying timeline in which people can add events
+
+
