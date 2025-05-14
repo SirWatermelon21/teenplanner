@@ -1,0 +1,53 @@
+This is a WEBSITE.
+
+Create a React (TypeScript) component for “Planning Mode” in our trip‑planner app. It must display a horizontal, scrollable, linear timeline where any team member can click an “Add Event” button to insert a new node:
+
+**Layout & Interaction**  
+- Full‑width, horizontal timeline with snap‑to‑grid behavior.  
+- Evenly spaced circular event nodes (48 px diameter) on a single baseline.  
+- Off‑screen nodes hinted via a 20% opacity gradient fade at left/right edges.  
+- “Add Event” button floating above the timeline at the center; on click, show a modal to enter “Event Title” and “Optional Time” fields.  
+- New events inserted inline at the appropriate scroll position.
+
+**Styling & Aesthetic**  
+- Bubbly, playful UI: pastel gradients for nodes, soft drop‑shadows, and rounded corners on all controls.  
+- Tailwind CSS for utility classes; maintain consistent spacing (p-4, m-2) and typography (font-medium, text-base).  
+- Nodes: background `bg-gradient-to-br` from pastel blue to pastel green, white text, 2 px border, full rounding.  
+- “Add Event” button: circular, 56 px, pastel pink gradient, pulsing micro‑animation on hover.
+
+**Component Requirements**  
+- Expose props:  
+  • `events: Array<{ id: string; title: string; time?: string }>`  
+  • `onAdd(event: { title: string; time?: string }): void`  
+- Use React hooks for state and scroll position; include stub for real‑time integration (e.g. WebSocket or Firebase).  
+- Include Modal component for event creation, with proper form validation and focus trap.
+
+**Deliverables**  
+- `TimelinePlanningMode.tsx` with JSX, Tailwind classes, stubbed data flow.  
+- Basic CSS animations (scroll snap, button pulse).  
+- Comments marking where to integrate real‑time updates and backend calls.
+
+Focus on a clean code structure, reusable pieces, and a bubbly, addictive UX.
+
+Project Goals
+The primary goals of this project are to:
+
+Enable Collaborative Trip Planning: Create a tool that allows a group of 7 friends to collaboratively plan their NYC trip itinerary in real-time.
+Provide an Interactive Timeline UI: Offer a visually appealing and intuitive timeline interface where users can add, view, and interact with events seamlessly.
+Ensure a Satisfying User Experience: Design a UI that is not only functional but also aesthetically pleasing, making the planning process enjoyable and engaging for the group.
+Core Functionality
+To achieve these goals, the app will include the following key features:
+
+Real-Time Interactive Timeline:
+A horizontal timeline displaying events in chronological order.
+Users can add events with details such as time, location, and description.
+Real-time updates ensure all group members see changes instantly as events are added or edited.
+Event Addition and Suggestions:
+A simple, intuitive interface (e.g., a form or modal) for adding new events to the timeline.
+(Optional but recommended) A feature allowing users to suggest events, with the ability for others to vote or comment, aiding group decision-making.
+UI Design and Aesthetics:
+A playful, satisfying design with rounded shapes, pastel colors, and smooth animations.
+Emphasis on ease of use, ensuring event management feels intuitive and visually enjoyable.
+Scalability and Simplicity:
+The initial version will focus on the core timeline and event addition features for a smooth launch.
+Future enhancements (e.g., mapping locations or estimating travel times) can be added later as needed.
