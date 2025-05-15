@@ -11,11 +11,6 @@ const caveat = Caveat({
   variable: "--font-caveat",
 });
 
-export const metadata = {
-  title: "Trip Planner",
-  description: "A collaborative trip planning application",
-};
-
 export default function RootLayout({
   children,
 }: {

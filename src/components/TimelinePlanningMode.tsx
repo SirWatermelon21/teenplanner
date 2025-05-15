@@ -72,7 +72,7 @@ const TimelinePlanningMode = () => {
     }
 
     const newNode: Event = {
-      id: Date.now().toString(),
+        id: Date.now().toString(),
       ...eventData,
       x: randomX,
       y: randomY,
@@ -105,8 +105,8 @@ const TimelinePlanningMode = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setNewEventData(prev => ({ ...prev, [name]: value }));
-  };
-
+      };
+      
   const handleDragStart = () => {
     setHoveringEdgeForDelete(null); // Clear any glow when starting a new drag
   };
@@ -296,15 +296,15 @@ const TimelinePlanningMode = () => {
               const toCard = events.find(e => e.id === conn.toId);
               if (!fromCard || !toCard) return null;
 
-              return (
+            return (
                 <ConnectionLine 
                   key={`${conn.id}-${conn.version}-wrapper`}
                   connection={conn} 
                   fromEvent={fromCard} 
                   toEvent={toCard} 
                 />
-              );
-            })}
+            );
+          })}
           </AnimatePresence>
         </svg>
 
@@ -335,7 +335,7 @@ const TimelinePlanningMode = () => {
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
         </svg>
       </motion.button>
-
+      
       <EventModal 
         isOpen={isModalOpen}
         onClose={handleCloseModal}
@@ -357,4 +357,4 @@ const TimelinePlanningMode = () => {
   );
 };
 
-export default TimelinePlanningMode;  
+export default TimelinePlanningMode; 
