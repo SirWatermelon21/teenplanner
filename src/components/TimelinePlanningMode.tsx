@@ -1,56 +1,29 @@
 'use client';
 
+import React from 'react';
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-
-interface Event {
-  id: string;
-  title: string;
-  time: string;
-  location?: string;
-  group?: string;
-  x: number;
-  y: number;
-}
-
-// Initial type for newEventData, x and y will be set before saving
-interface NewEventData {
-  title: string;
-  time: string;
-  location?: string;
-  group?: string;
-}
-
-interface Connection {
-  id: string;
-  fromId: string;
-  toId: string;
-  version: number;
-}
-
-const EVENT_CARD_WIDTH = 208; // w-52 is 13rem = 208px
-const EVENT_CARD_HEIGHT = 128; // min-h-[8rem] is 8rem = 128px
-const DANGER_ZONE_PADDING = 40; // How close to the edge to activate glow/delete
-const SELECTED_CARD_BORDER_COLOR = 'rgba(59, 130, 246, 0.9)'; // Tailwind blue-500
-const CONNECTION_LINE_COLOR = 'rgba(135, 206, 250, 0.7)'; // LightSkyBlue with alpha
-const CONNECTION_LINE_WIDTH = 3;
-const LINE_GLOW_FILTER_ID = "line-glow-effect";
-
-// Colors for deletion indication
-const DELETE_INDICATOR_CARD_BG = 'rgba(254, 202, 202, 1)'; // Tailwind red-200
-const DELETE_INDICATOR_CARD_TEXT = 'rgba(153, 27, 27, 1)'; // Tailwind red-800
-const DELETE_INDICATOR_FRAME_GLOW = '0 0 15px 5px rgba(255, 80, 80, 0.7)';
-const DEFAULT_CARD_BG = '#FFFFFF';
-const DEFAULT_CARD_TEXT = '#000000';
-
-const genericLocations = ["Park", "Cafe", "Library", "Online", "Meeting Point", "Venue A", "Venue B"];
+import { Event, NewEventData, Connection, NewConnectionData } from './timeline/types';
+import {
+  EVENT_CARD_WIDTH,
+  EVENT_CARD_HEIGHT,
+  DANGER_ZONE_PADDING,
+  LINE_GLOW_FILTER_ID,
+  DELETE_INDICATOR_FRAME_GLOW,
+  genericLocations,
+  transportEmojis,
+  distanceUnits,
+  timeUnits
+} from './timeline/constants';
+import EventCard from './timeline/EventCard';
+import ConnectionLine from './timeline/ConnectionLine';
+import EventModal from './timeline/EventModal';
+import ConnectionModal from './timeline/ConnectionModal';
 
 // Example of disabling ESLint for a specific line
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const unusedVariable = 'example';
 
-// Example of disabling multiple rules for a specific line
-// eslint-disable-next-line react-hooks/exhaustive-deps, @typescript-eslint/no-explicit-any
 const TimelinePlanningMode = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -62,6 +35,18 @@ const TimelinePlanningMode = () => {
   const [hoveringEdgeForDelete, setHoveringEdgeForDelete] = useState<string | null>(null);
   const [firstSelectedCardId, setFirstSelectedCardId] = useState<string | null>(null);
   const [connections, setConnections] = useState<Connection[]>([]);
+
+  // State for Connection Modal
+  const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
+  const [newConnectionData, setNewConnectionData] = useState<NewConnectionData>({
+    transportEmoji: transportEmojis[0].emoji,
+    distanceValue: undefined,
+    distanceUnit: distanceUnits[0].value,
+    timeValue: undefined,
+    timeUnit: timeUnits[0].value
+  });
+  const [pendingConnectionFromId, setPendingConnectionFromId] = useState<string | null>(null);
+  const [pendingConnectionToId, setPendingConnectionToId] = useState<string | null>(null);
 
   const eventContainerRef = useRef<HTMLDivElement>(null); // Ref for the event container
 
@@ -194,12 +179,90 @@ const TimelinePlanningMode = () => {
         // Prevent duplicate connections (simple check)
         const existingConnection = connections.find(c => (c.fromId === firstSelectedCardId && c.toId === cardId) || (c.fromId === cardId && c.toId === firstSelectedCardId));
         if (!existingConnection) {
-          const newConnection: Connection = { id: Date.now().toString(), fromId: firstSelectedCardId, toId: cardId, version: 0 };
-          setConnections(prev => [...prev, newConnection]);
+          handleOpenConnectionModal(firstSelectedCardId, cardId);
+        } else {
+          setFirstSelectedCardId(null); // Clear selection if connection already exists
         }
-        setFirstSelectedCardId(null); // Clear selection after attempting to connect
       }
     }
+  };
+
+  // Connection Modal Handlers
+  const handleOpenConnectionModal = (fromId: string, toId: string) => {
+    setPendingConnectionFromId(fromId);
+    setPendingConnectionToId(toId);
+    setNewConnectionData({ // Reset to default
+      transportEmoji: transportEmojis[0].emoji,
+      distanceValue: undefined,
+      distanceUnit: distanceUnits[0].value,
+      timeValue: undefined,
+      timeUnit: timeUnits[0].value
+    });
+    setIsConnectionModalOpen(true);
+  };
+
+  const handleCloseConnectionModal = () => {
+    setIsConnectionModalOpen(false);
+    setPendingConnectionFromId(null);
+    setPendingConnectionToId(null);
+    setFirstSelectedCardId(null); // Also clear card selection
+  };
+
+  const handleConnectionInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    const valueToSet = e.target.type === 'number' ? parseFloat(value) : value;
+    setNewConnectionData(prev => ({ ...prev, [name]: valueToSet }));
+  };
+
+  const handleSaveConnection = () => {
+    if (!pendingConnectionFromId || !pendingConnectionToId || !newConnectionData.transportEmoji) {
+      alert("Transportation type is required.");
+      return;
+    }
+
+    let finalDistance: string | undefined = undefined;
+    if (newConnectionData.distanceValue && newConnectionData.distanceUnit) {
+      finalDistance = `${newConnectionData.distanceValue} ${newConnectionData.distanceUnit}`;
+    }
+
+    let finalEstimatedTime: string | undefined = undefined;
+    if (newConnectionData.timeValue && newConnectionData.timeUnit) {
+      finalEstimatedTime = `${newConnectionData.timeValue} ${newConnectionData.timeUnit}`;
+    }
+
+    const newConnection: Connection = {
+      id: Date.now().toString(),
+      fromId: pendingConnectionFromId,
+      toId: pendingConnectionToId,
+      version: 0,
+      transportEmoji: newConnectionData.transportEmoji,
+      distance: finalDistance,
+      estimatedTime: finalEstimatedTime
+    };
+    setConnections(prev => [...prev, newConnection]);
+    handleCloseConnectionModal();
+  };
+
+  const handleCreateGenericConnection = () => {
+    if (!pendingConnectionFromId || !pendingConnectionToId) return; // Should not happen if modal is open
+    
+    const randomTransport = transportEmojis[Math.floor(Math.random() * transportEmojis.length)];
+    const randomDistValue = Math.floor(Math.random() * 100) + 1;
+    const randomDistUnit = distanceUnits[Math.floor(Math.random() * distanceUnits.length)];
+    const randomTimeValue = Math.floor(Math.random() * 50) + 10;
+    const randomTimeUnit = timeUnits[Math.floor(Math.random() * timeUnits.length)];
+
+    const genericConnection: Connection = {
+      id: Date.now().toString(),
+      fromId: pendingConnectionFromId,
+      toId: pendingConnectionToId,
+      version: 0,
+      transportEmoji: randomTransport.emoji,
+      distance: `${randomDistValue} ${randomDistUnit.value}`,
+      estimatedTime: `${randomTimeValue} ${randomTimeUnit.value}`
+    };
+    setConnections(prev => [...prev, genericConnection]);
+    handleCloseConnectionModal();
   };
 
   return (
@@ -217,9 +280,9 @@ const TimelinePlanningMode = () => {
         <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0, zIndex: 1, pointerEvents: 'none' }}>
           <defs>
             <filter id={LINE_GLOW_FILTER_ID} x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3.5" result="coloredBlur"/>
+              <feGaussianBlur stdDeviation="7" result="coloredBlur"/>
               <feComponentTransfer in="coloredBlur" result="opaquedBlur">
-                <feFuncA type="linear" slope="0.7"/>
+                <feFuncA type="linear" slope="1"/>
               </feComponentTransfer>
               <feMerge>
                 <feMergeNode in="opaquedBlur"/>
@@ -233,32 +296,12 @@ const TimelinePlanningMode = () => {
               const toCard = events.find(e => e.id === conn.toId);
               if (!fromCard || !toCard) return null;
 
-              const fromCenter = { x: fromCard.x + EVENT_CARD_WIDTH / 2, y: fromCard.y + EVENT_CARD_HEIGHT / 2 };
-              const toCenter = { x: toCard.x + EVENT_CARD_WIDTH / 2, y: toCard.y + EVENT_CARD_HEIGHT / 2 };
-              
-              let d = ``;
-              if (Math.abs(fromCenter.y - toCenter.y) < 10) { // Relatively same Y-level
-                d = `M ${fromCenter.x},${fromCenter.y} L ${toCenter.x},${toCenter.y}`;
-              } else {
-                const c1x = fromCenter.x + (toCenter.x - fromCenter.x) * 0.3;
-                const c1y = fromCenter.y;
-                const c2x = toCenter.x - (toCenter.x - fromCenter.x) * 0.3;
-                const c2y = toCenter.y;
-                d = `M ${fromCenter.x},${fromCenter.y} C ${c1x},${c1y} ${c2x},${c2y} ${toCenter.x},${toCenter.y}`;
-              }
-
               return (
-                <motion.path
-                  key={`${conn.id}-${conn.version}`}
-                  d={d}
-                  stroke={CONNECTION_LINE_COLOR}
-                  strokeWidth={CONNECTION_LINE_WIDTH}
-                  fill="none"
-                  filter={`url(#${LINE_GLOW_FILTER_ID})`}
-                  initial={{ opacity: 0, pathLength: 0 }}
-                  animate={{ opacity: 1, pathLength: 1 }}
-                  exit={{ opacity: 0, pathLength: 0 }}
-                  transition={{ duration: 0.4, ease: "easeInOut" }}
+                <ConnectionLine 
+                  key={`${conn.id}-${conn.version}-wrapper`}
+                  connection={conn} 
+                  fromEvent={fromCard} 
+                  toEvent={toCard} 
                 />
               );
             })}
@@ -266,42 +309,17 @@ const TimelinePlanningMode = () => {
         </svg>
 
         {events.map((event) => (
-          <motion.div
+          <EventCard 
             key={event.id}
-            drag
-            dragConstraints={eventContainerRef}
+            event={event}
+            eventContainerRef={eventContainerRef}
             onDragStart={handleDragStart}
-            onDrag={(e, info) => handleDragMove(info, event.id)}
-            onDragEnd={(e, info) => handleDragEnd(info, event.id)}
-            onDoubleClick={() => handleCardDoubleClick(event.id)}
-            whileDrag={{ scale: 1.05, zIndex: 10, cursor: 'grabbing' }}
-            initial={{ opacity: 0, x: event.x, y: event.y, scale: 0.5 }}
-            animate={{
-              opacity: 1,
-              x: event.x,
-              y: event.y,
-              scale: 1,
-              backgroundColor: hoveringEdgeForDelete === event.id ? DELETE_INDICATOR_CARD_BG : DEFAULT_CARD_BG,
-              color: hoveringEdgeForDelete === event.id ? DELETE_INDICATOR_CARD_TEXT : DEFAULT_CARD_TEXT,
-              borderColor: firstSelectedCardId === event.id ? SELECTED_CARD_BORDER_COLOR : 'transparent',
-              boxShadow: hoveringEdgeForDelete === event.id ? DELETE_INDICATOR_FRAME_GLOW : undefined,
-            }}
-            transition={{ type: 'spring', stiffness: 260, damping: 20, duration: 0.15, backgroundColor: {duration: 0.1}, color: {duration: 0.1}, borderColor: {duration: 0.1}, boxShadow: { duration: 0.15 } }}
-            className="bg-white text-black rounded-lg p-4 w-52 min-h-[8rem] flex flex-col items-center justify-start shadow-xl absolute border-2"
-            style={{ zIndex: 2 }} // Ensure cards are above lines
-          >
-            <div className="flex items-center mt-2 mb-1">
-              <svg className="w-4 h-4 mr-1.5 flex-shrink-0" style={{color: hoveringEdgeForDelete === event.id ? DELETE_INDICATOR_CARD_TEXT : 'rgb(55 65 81)'}} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M12 7v5l2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span className="text-xs font-medium" style={{color: hoveringEdgeForDelete === event.id ? DELETE_INDICATOR_CARD_TEXT : 'rgb(55 65 81)'}}>{event.time}</span>
-            </div>
-            <div className="text-center mb-2 flex-grow flex flex-col justify-center">
-              <div className="font-semibold text-sm mb-0.5 break-words">{event.title}</div>
-              {event.location && <div className="text-xs break-words" style={{color: hoveringEdgeForDelete === event.id ? DELETE_INDICATOR_CARD_TEXT : 'rgb(107 114 128)'}}>• {event.location}</div>}
-            </div>
-          </motion.div>
+            onDragMove={handleDragMove}
+            onDragEnd={handleDragEnd}
+            onDoubleClick={handleCardDoubleClick}
+            isHoveringEdgeForDelete={hoveringEdgeForDelete === event.id}
+            isSelected={firstSelectedCardId === event.id}
+          />
         ))}
       </div>
 
@@ -318,106 +336,23 @@ const TimelinePlanningMode = () => {
         </svg>
       </motion.button>
 
-      {/* Add Event Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-40"
-            onClick={handleCloseModal}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: -20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: -20 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-              className="bg-white text-black rounded-xl p-6 w-full max-w-md shadow-2xl z-50"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-xl font-semibold text-gray-900 mb-6 text-center">Create Event</h3>
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="eventTitle" className="block text-sm font-medium text-gray-700 mb-1">
-                    Event Title <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="eventTitle"
-                    name="title"
-                    value={newEventData.title}
-                    onChange={handleInputChange}
-                    placeholder="e.g., Museum Visit"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-black shadow-sm"
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor="eventTime" className="block text-sm font-medium text-gray-700 mb-1">
-                    Time <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="time"
-                    id="eventTime"
-                    name="time"
-                    value={newEventData.time}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-black shadow-sm"
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor="eventLocation" className="block text-sm font-medium text-gray-700 mb-1">
-                    Location
-                  </label>
-                  <input
-                    type="text"
-                    id="eventLocation"
-                    name="location"
-                    value={newEventData.location}
-                    onChange={handleInputChange}
-                    placeholder="e.g., City Center Art Gallery"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-black shadow-sm"
-                  />
-                </div>
-                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 justify-end pt-4">
-                  <motion.button
-                    type="button"
-                    onClick={handleCreateGenericEvent}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 font-medium w-full sm:w-auto"
-                  >
-                    Create Generic
-                  </motion.button>
-                  <div className="flex space-x-3 w-full sm:w-auto">
-                    <motion.button
-                      type="button"
-                      onClick={handleCloseModal}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 font-medium flex-1 sm:flex-initial"
-                    >
-                      Cancel
-                    </motion.button>
-                    <motion.button
-                      type="button"
-                      onClick={handleSaveEvent}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed font-medium flex-1 sm:flex-initial shadow-md"
-                      disabled={!newEventData.title.trim() || !newEventData.time}
-                    >
-                      Save Event
-                    </motion.button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <EventModal 
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        newEventData={newEventData}
+        onInputChange={handleInputChange}
+        onSave={handleSaveEvent}
+        onCreateGeneric={handleCreateGenericEvent}
+      />
+
+      <ConnectionModal
+        isOpen={isConnectionModalOpen}
+        onClose={handleCloseConnectionModal}
+        connectionData={newConnectionData}
+        onInputChange={handleConnectionInputChange}
+        onSave={handleSaveConnection}
+        onCreateGeneric={handleCreateGenericConnection}
+      />
     </div>
   );
 };
