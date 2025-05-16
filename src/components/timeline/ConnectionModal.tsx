@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { NewConnectionData } from './types';
 import { transportEmojis, distanceUnits, timeUnits } from './constants';
@@ -8,20 +8,50 @@ import { transportEmojis, distanceUnits, timeUnits } from './constants';
 interface ConnectionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  connectionData: NewConnectionData;
-  onInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
-  onSave: () => void;
+  onSave: (data: NewConnectionData) => void;
   onCreateGeneric: () => void;
 }
+
+const defaultConnectionData: NewConnectionData = {
+  transportEmoji: transportEmojis[0].emoji,
+  distanceValue: undefined,
+  distanceUnit: distanceUnits[0].value,
+  timeValue: undefined,
+  timeUnit: timeUnits[0].value,
+};
 
 const ConnectionModal: React.FC<ConnectionModalProps> = ({
   isOpen,
   onClose,
-  connectionData,
-  onInputChange,
   onSave,
   onCreateGeneric,
 }) => {
+  const [internalConnectionData, setInternalConnectionData] = useState<NewConnectionData>(defaultConnectionData);
+
+  useEffect(() => {
+    if (isOpen) {
+      setInternalConnectionData(defaultConnectionData);
+    }
+  }, [isOpen]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    const valueToSet = e.target.type === 'number' ? (value === '' ? undefined : parseFloat(value)) : value;
+    setInternalConnectionData(prev => ({ ...prev, [name]: valueToSet }));
+  };
+
+  const handleSave = () => {
+    if (!internalConnectionData.transportEmoji) {
+      alert("Transportation type is required.");
+      return;
+    }
+    onSave(internalConnectionData);
+  };
+
+  const handleCreateGeneric = () => {
+    onCreateGeneric();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -51,8 +81,8 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
                 <select
                   id="transportEmoji"
                   name="transportEmoji"
-                  value={connectionData.transportEmoji}
-                  onChange={onInputChange}
+                  value={internalConnectionData.transportEmoji}
+                  onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-black shadow-sm"
                   required
                 >
@@ -71,16 +101,16 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
                     type="number"
                     id="distanceValue"
                     name="distanceValue"
-                    value={connectionData.distanceValue || ''}
-                    onChange={onInputChange}
+                    value={internalConnectionData.distanceValue || ''}
+                    onChange={handleInputChange}
                     placeholder="e.g., 5"
                     className="w-2/3 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-black shadow-sm"
                   />
                   <select
                     id="distanceUnit"
                     name="distanceUnit"
-                    value={connectionData.distanceUnit || distanceUnits[0].value}
-                    onChange={onInputChange}
+                    value={internalConnectionData.distanceUnit || distanceUnits[0].value}
+                    onChange={handleInputChange}
                     className="w-1/3 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-black shadow-sm"
                   >
                     {distanceUnits.map(unit => (
@@ -97,16 +127,16 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
                     type="number"
                     id="timeValue"
                     name="timeValue"
-                    value={connectionData.timeValue || ''}
-                    onChange={onInputChange}
+                    value={internalConnectionData.timeValue || ''}
+                    onChange={handleInputChange}
                     placeholder="e.g., 15"
                     className="w-2/3 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-black shadow-sm"
                   />
                   <select
                     id="timeUnit"
                     name="timeUnit"
-                    value={connectionData.timeUnit || timeUnits[0].value}
-                    onChange={onInputChange}
+                    value={internalConnectionData.timeUnit || timeUnits[0].value}
+                    onChange={handleInputChange}
                     className="w-1/3 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-black shadow-sm"
                   >
                     {timeUnits.map(unit => (
@@ -119,7 +149,7 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
               <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 justify-end pt-4">
                 <motion.button
                   type="button"
-                  onClick={onCreateGeneric}
+                  onClick={handleCreateGeneric}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 font-medium w-full sm:w-auto"
@@ -138,11 +168,11 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
                   </motion.button>
                   <motion.button
                     type="button"
-                    onClick={onSave}
+                    onClick={handleSave}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     className="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed font-medium flex-1 sm:flex-initial shadow-md"
-                    disabled={!connectionData.transportEmoji}
+                    disabled={!internalConnectionData.transportEmoji}
                   >
                     Save Connection
                   </motion.button>

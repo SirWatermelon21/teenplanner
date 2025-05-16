@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
-import { useState, useRef } from 'react';
+import { useState, useRef, WheelEvent } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { Event, NewEventData, Connection, NewConnectionData } from './timeline/types';
+import { getPointOnCubicBezier } from './timeline/utils';
 import {
   EVENT_CARD_WIDTH,
   EVENT_CARD_HEIGHT,
@@ -13,7 +14,12 @@ import {
   genericLocations,
   transportEmojis,
   distanceUnits,
-  timeUnits
+  timeUnits,
+  TRANSPORT_ICON_RADIUS,
+  TRANSPORT_ICON_EMOJI_SIZE,
+  CONNECTION_LINE_WIDTH,
+  transportColorMap,
+  CONNECTION_LINE_COLOR
 } from './timeline/constants';
 import EventCard from './timeline/EventCard';
 import ConnectionLine from './timeline/ConnectionLine';
@@ -27,31 +33,20 @@ const unusedVariable = 'example';
 const TimelinePlanningMode = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newEventData, setNewEventData] = useState<NewEventData>({
-    title: '',
-    time: '',
-    location: '',
-  });
   const [hoveringEdgeForDelete, setHoveringEdgeForDelete] = useState<string | null>(null);
   const [firstSelectedCardId, setFirstSelectedCardId] = useState<string | null>(null);
   const [connections, setConnections] = useState<Connection[]>([]);
 
   // State for Connection Modal
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
-  const [newConnectionData, setNewConnectionData] = useState<NewConnectionData>({
-    transportEmoji: transportEmojis[0].emoji,
-    distanceValue: undefined,
-    distanceUnit: distanceUnits[0].value,
-    timeValue: undefined,
-    timeUnit: timeUnits[0].value
-  });
   const [pendingConnectionFromId, setPendingConnectionFromId] = useState<string | null>(null);
   const [pendingConnectionToId, setPendingConnectionToId] = useState<string | null>(null);
+
+  const [scale, setScale] = useState(1);
 
   const eventContainerRef = useRef<HTMLDivElement>(null); // Ref for the event container
 
   const handleOpenModal = () => {
-    setNewEventData({ title: '', time: '', location: '' });
     setIsModalOpen(true);
   };
 
@@ -67,8 +62,8 @@ const TimelinePlanningMode = () => {
       const containerWidth = eventContainerRef.current.offsetWidth;
       const containerHeight = eventContainerRef.current.offsetHeight;
       
-      randomX = Math.random() * Math.max(0, containerWidth - EVENT_CARD_WIDTH);
-      randomY = Math.random() * Math.max(0, containerHeight - EVENT_CARD_HEIGHT);
+      randomX = Math.random() * Math.max(0, containerWidth / scale - EVENT_CARD_WIDTH );
+      randomY = Math.random() * Math.max(0, containerHeight / scale - EVENT_CARD_HEIGHT);
     }
 
     const newNode: Event = {
@@ -81,12 +76,8 @@ const TimelinePlanningMode = () => {
     handleCloseModal();
   };
 
-  const handleSaveEvent = () => {
-    if (!newEventData.title.trim() || !newEventData.time) {
-      alert("Event Title and Time are required.");
-      return;
-    }
-    createAndPlaceEvent(newEventData);
+  const handleSaveEvent = (data: NewEventData) => {
+    createAndPlaceEvent(data);
   };
 
   const handleCreateGenericEvent = () => {
@@ -102,11 +93,6 @@ const TimelinePlanningMode = () => {
     createAndPlaceEvent(genericEventData);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setNewEventData(prev => ({ ...prev, [name]: value }));
-      };
-      
   const handleDragStart = () => {
     setHoveringEdgeForDelete(null); // Clear any glow when starting a new drag
   };
@@ -118,12 +104,15 @@ const TimelinePlanningMode = () => {
     const currentX = eventBeingDragged.x + info.offset.x;
     const currentY = eventBeingDragged.y + info.offset.y;
     const { offsetWidth, offsetHeight } = eventContainerRef.current;
+    
+    const scaledCardWidth = EVENT_CARD_WIDTH * scale;
+    const scaledCardHeight = EVENT_CARD_HEIGHT * scale;
 
     const isNearEdge = 
       currentX < DANGER_ZONE_PADDING ||
-      currentX + EVENT_CARD_WIDTH > offsetWidth - DANGER_ZONE_PADDING ||
+      currentX + scaledCardWidth > offsetWidth - DANGER_ZONE_PADDING ||
       currentY < DANGER_ZONE_PADDING ||
-      currentY + EVENT_CARD_HEIGHT > offsetHeight - DANGER_ZONE_PADDING;
+      currentY + scaledCardHeight > offsetHeight - DANGER_ZONE_PADDING;
 
     if (isNearEdge) {
       setHoveringEdgeForDelete(eventId);
@@ -144,13 +133,16 @@ const TimelinePlanningMode = () => {
     const finalX = originalEvent.x + info.offset.x;
     const finalY = originalEvent.y + info.offset.y;
     const { offsetWidth, offsetHeight } = eventContainerRef.current;
+    
+    const scaledCardWidth = EVENT_CARD_WIDTH * scale;
+    const scaledCardHeight = EVENT_CARD_HEIGHT * scale;
 
     if (wasHoveringEdge) {
       const isAtEdgeForDelete = 
         finalX < DANGER_ZONE_PADDING ||
-        finalX + EVENT_CARD_WIDTH > offsetWidth - DANGER_ZONE_PADDING ||
+        finalX + scaledCardWidth > offsetWidth - DANGER_ZONE_PADDING ||
         finalY < DANGER_ZONE_PADDING ||
-        finalY + EVENT_CARD_HEIGHT > offsetHeight - DANGER_ZONE_PADDING;
+        finalY + scaledCardHeight > offsetHeight - DANGER_ZONE_PADDING;
 
       if (isAtEdgeForDelete) {
         setEvents(prevEvents => prevEvents.filter(ev => ev.id !== eventId));
@@ -191,13 +183,6 @@ const TimelinePlanningMode = () => {
   const handleOpenConnectionModal = (fromId: string, toId: string) => {
     setPendingConnectionFromId(fromId);
     setPendingConnectionToId(toId);
-    setNewConnectionData({ // Reset to default
-      transportEmoji: transportEmojis[0].emoji,
-      distanceValue: undefined,
-      distanceUnit: distanceUnits[0].value,
-      timeValue: undefined,
-      timeUnit: timeUnits[0].value
-    });
     setIsConnectionModalOpen(true);
   };
 
@@ -208,26 +193,21 @@ const TimelinePlanningMode = () => {
     setFirstSelectedCardId(null); // Also clear card selection
   };
 
-  const handleConnectionInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    const valueToSet = e.target.type === 'number' ? parseFloat(value) : value;
-    setNewConnectionData(prev => ({ ...prev, [name]: valueToSet }));
-  };
-
-  const handleSaveConnection = () => {
-    if (!pendingConnectionFromId || !pendingConnectionToId || !newConnectionData.transportEmoji) {
-      alert("Transportation type is required.");
+  const handleSaveConnection = (data: NewConnectionData) => {
+    if (!pendingConnectionFromId || !pendingConnectionToId || !data.transportEmoji) {
+      // Basic check, primary validation is in modal
+      alert("Connection details are incomplete."); 
       return;
     }
 
     let finalDistance: string | undefined = undefined;
-    if (newConnectionData.distanceValue && newConnectionData.distanceUnit) {
-      finalDistance = `${newConnectionData.distanceValue} ${newConnectionData.distanceUnit}`;
+    if (data.distanceValue && data.distanceUnit) {
+      finalDistance = `${data.distanceValue} ${data.distanceUnit}`;
     }
 
     let finalEstimatedTime: string | undefined = undefined;
-    if (newConnectionData.timeValue && newConnectionData.timeUnit) {
-      finalEstimatedTime = `${newConnectionData.timeValue} ${newConnectionData.timeUnit}`;
+    if (data.timeValue && data.timeUnit) {
+      finalEstimatedTime = `${data.timeValue} ${data.timeUnit}`;
     }
 
     const newConnection: Connection = {
@@ -235,16 +215,16 @@ const TimelinePlanningMode = () => {
       fromId: pendingConnectionFromId,
       toId: pendingConnectionToId,
       version: 0,
-      transportEmoji: newConnectionData.transportEmoji,
+      transportEmoji: data.transportEmoji,
       distance: finalDistance,
       estimatedTime: finalEstimatedTime
     };
     setConnections(prev => [...prev, newConnection]);
-    handleCloseConnectionModal();
+    handleCloseConnectionModal(); // Close modal after saving
   };
 
   const handleCreateGenericConnection = () => {
-    if (!pendingConnectionFromId || !pendingConnectionToId) return; // Should not happen if modal is open
+    if (!pendingConnectionFromId || !pendingConnectionToId) return;
     
     const randomTransport = transportEmojis[Math.floor(Math.random() * transportEmojis.length)];
     const randomDistValue = Math.floor(Math.random() * 100) + 1;
@@ -262,7 +242,28 @@ const TimelinePlanningMode = () => {
       estimatedTime: `${randomTimeValue} ${randomTimeUnit.value}`
     };
     setConnections(prev => [...prev, genericConnection]);
-    handleCloseConnectionModal();
+    handleCloseConnectionModal(); // Close modal after creating generic
+  };
+
+  const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const zoomSensitivity = 0.001;
+    setScale(prevScale => {
+      const newScale = prevScale - event.deltaY * zoomSensitivity;
+      return Math.min(Math.max(newScale, 0.2), 3); // Clamp scale (e.g., 20% to 300%)
+    });
+  };
+
+  // Helper to get event card center (adjust if card dimensions change or are dynamic)
+  const getCardCenter = (cardId: string): { x: number; y: number } | null => {
+    const card = events.find(e => e.id === cardId);
+    if (card) {
+      return {
+        x: card.x + (EVENT_CARD_WIDTH * scale) / 2,
+        y: card.y + (EVENT_CARD_HEIGHT * scale) / 2,
+      };
+    }
+    return null;
   };
 
   return (
@@ -275,6 +276,7 @@ const TimelinePlanningMode = () => {
           boxShadow: hoveringEdgeForDelete !== null ? DELETE_INDICATOR_FRAME_GLOW : undefined,
           transition: 'box-shadow 0.2s ease-in-out'
         }}
+        onWheel={handleWheel}
       >
         {/* SVG Layer for Connections */}
         <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0, zIndex: 1, pointerEvents: 'none' }}>
@@ -296,12 +298,19 @@ const TimelinePlanningMode = () => {
               const toCard = events.find(e => e.id === conn.toId);
               if (!fromCard || !toCard) return null;
 
+              const p0 = getCardCenter(conn.fromId);
+              const p1 = getCardCenter(conn.toId);
+
+              if (!p0 || !p1) return null;
+
+              // The rendering logic previously here is now in ConnectionLine.tsx
             return (
                 <ConnectionLine 
-                  key={`${conn.id}-${conn.version}-wrapper`}
-                  connection={conn} 
-                  fromEvent={fromCard} 
-                  toEvent={toCard} 
+                  key={`${conn.id}-${conn.version}-wrapper`} // wrapper key for AnimatePresence
+                  connection={conn}
+                  p0={p0}
+                  p1={p1}
+                  scale={scale}
                 />
             );
           })}
@@ -319,6 +328,7 @@ const TimelinePlanningMode = () => {
             onDoubleClick={handleCardDoubleClick}
             isHoveringEdgeForDelete={hoveringEdgeForDelete === event.id}
             isSelected={firstSelectedCardId === event.id}
+            scale={scale}
           />
         ))}
       </div>
@@ -339,8 +349,6 @@ const TimelinePlanningMode = () => {
       <EventModal 
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        newEventData={newEventData}
-        onInputChange={handleInputChange}
         onSave={handleSaveEvent}
         onCreateGeneric={handleCreateGenericEvent}
       />
@@ -348,8 +356,6 @@ const TimelinePlanningMode = () => {
       <ConnectionModal
         isOpen={isConnectionModalOpen}
         onClose={handleCloseConnectionModal}
-        connectionData={newConnectionData}
-        onInputChange={handleConnectionInputChange}
         onSave={handleSaveConnection}
         onCreateGeneric={handleCreateGenericConnection}
       />
